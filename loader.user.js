@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Userscript Loader
 // @namespace    https://nowww-nine.vercel.app
-// @version      1.2.0
+// @version      1.4.0
 // @match        *://tarviral.com/*
 // @match        *://rodaemotor.com/*
 // @match        *://aincradmods.com/getkey*
@@ -15,38 +15,34 @@
 // ==/UserScript==
 
 (function(){
-  const _b=GM_getValue,_s=GM_setValue,_r=GM_xmlhttpRequest,_c=GM_setClipboard,_m=GM_registerMenuCommand;
+  const _b=GM_getValue,_s=GM_setValue,_r=GM_xmlhttpRequest,_m=GM_registerMenuCommand;
   const _u="https://nowww-nine.vercel.app",_k="lt";
 
-  async function _d(b64,tok){
-    // Key derived from: SHA-256(token + reversed_token)
-    const raw=tok+tok.split('').reverse().join('');
-    const kb=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(raw));
-    const key=await crypto.subtle.importKey("raw",kb,"AES-GCM",false,["decrypt"]);
-    const buf=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
-    const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:buf.slice(0,12)},key,buf.slice(12));
-    return new TextDecoder().decode(plain);
-  }
-
-  function _i(code){
-    const u=URL.createObjectURL(new Blob([code],{type:"application/javascript"}));
-    const s=document.createElement("script");
-    s.src=u; s.onload=()=>URL.revokeObjectURL(u);
-    (document.head||document.documentElement).appendChild(s);
+  function _d(b64, tok) {
+    const key = tok.split('').map(c => c.charCodeAt(0));
+    const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    let out = '';
+    for (let i = 0; i < buf.length; i++) out += String.fromCharCode(buf[i] ^ key[i % key.length]);
+    return decodeURIComponent(escape(out));
   }
 
   function _l(tok){
     _r({method:"GET",url:_u+"/api/serve?token="+encodeURIComponent(tok),
       onload(res){
         if(res.status===200){
-          _d(res.responseText.trim(),tok).then(code=>{
-            _i(code);
+          try {
+            const code = _d(res.responseText.trim(), tok);
+            const fn = new Function(
+              'GM_setValue','GM_getValue','GM_xmlhttpRequest','GM_setClipboard','GM_registerMenuCommand',
+              code
+            );
+            fn(_s,_b,_r,GM_setClipboard,_m);
             _r({method:"POST",url:_u+"/api/done",
               headers:{"Content-Type":"application/json"},
               data:JSON.stringify({token:tok})});
-          }).catch(()=>{});
+          } catch(e){ console.error("[L]",e); }
         } else {
-          try{const e=JSON.parse(res.responseText).error;alert("[L] "+e);}catch{}
+          try{alert("[L] "+JSON.parse(res.responseText).error);}catch{}
           if(res.status===403)_s(_k,null);
         }
       },onerror(){}
