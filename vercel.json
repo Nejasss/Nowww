@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/admin(.*)", "dest": "/public/admin/index.html" },
+    { "src": "/(.*)", "dest": "/public/$1" }
+  ],
+  "env": {
+    "ADMIN_KEY": "@admin_key",
+    "GH_TOKEN": "@gh_token",
+    "GH_REPO": "@gh_repo",
+    "GH_PATH": "data/tokens.json"
+  }
+}
