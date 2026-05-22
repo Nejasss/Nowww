@@ -1,8 +1,23 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { readDB } from "./_github.js";
+import { webcrypto } from "crypto";
 
 const SCRIPT_PATH = join(process.cwd(), "public/script.js");
+
+// Must match loader derivation: SHA-256(token + reversed_token)
+async function deriveKey(token) {
+  const raw = token + token.split("").reverse().join("");
+  const kb = await webcrypto.subtle.digest("SHA-256", Buffer.from(raw));
+  return webcrypto.subtle.importKey("raw", kb, "AES-GCM", false, ["encrypt"]);
+}
+
+async function encryptScript(plaintext, token) {
+  const key = await deriveKey(token);
+  const iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const enc = await webcrypto.subtle.encrypt({ name: "AES-GCM", iv }, key, Buffer.from(plaintext));
+  return Buffer.concat([Buffer.from(iv), Buffer.from(enc)]).toString("base64");
+}
 
 export default async function handler(req, res) {
   const { token } = req.query;
@@ -28,7 +43,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Script not found" });
   }
 
-  res.setHeader("Content-Type", "application/javascript");
+  const encrypted = await encryptScript(script, token);
+  res.setHeader("Content-Type", "text/plain");
   res.setHeader("Cache-Control", "no-store");
-  res.status(200).send(script);
+  res.status(200).send(encrypted);
 }
