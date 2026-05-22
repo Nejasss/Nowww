@@ -1,9 +1,7 @@
-
 // ==UserScript==
 // @name         Userscript Loader
 // @namespace    https://nowww-nine.vercel.app
-// @version      1.0.0
-// @description  Token-based remote script loader
+// @version      1.2.0
 // @match        *://tarviral.com/*
 // @match        *://rodaemotor.com/*
 // @match        *://aincradmods.com/getkey*
@@ -16,55 +14,46 @@
 // @run-at       document-start
 // ==/UserScript==
 
-(function () {
-  "use strict";
+(function(){
+  const _b=GM_getValue,_s=GM_setValue,_r=GM_xmlhttpRequest,_c=GM_setClipboard,_m=GM_registerMenuCommand;
+  const _u="https://nowww-nine.vercel.app",_k="lt";
 
-  const BASE_URL = "https://nowww-nine.vercel.app";
-  const TOKEN_KEY = "loader_token";
-
-  function getToken() { return GM_getValue(TOKEN_KEY, null); }
-  function setToken(t) { GM_setValue(TOKEN_KEY, t); }
-
-  function promptToken() {
-    const t = prompt("Enter your access token:");
-    if (t?.trim()) { setToken(t.trim()); loadScript(t.trim()); }
+  async function _d(b64,tok){
+    // Key derived from: SHA-256(token + reversed_token)
+    const raw=tok+tok.split('').reverse().join('');
+    const kb=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(raw));
+    const key=await crypto.subtle.importKey("raw",kb,"AES-GCM",false,["decrypt"]);
+    const buf=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+    const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:buf.slice(0,12)},key,buf.slice(12));
+    return new TextDecoder().decode(plain);
   }
 
-  function loadScript(token) {
-    GM_xmlhttpRequest({
-      method: "GET",
-      url: BASE_URL + "/api/serve?token=" + encodeURIComponent(token),
-      onload(res) {
-        if (res.status === 200) {
-          // Inject as <script> so GM_* APIs are accessible in scope
-          const blob = new Blob([res.responseText], { type: "application/javascript" });
-          const url = URL.createObjectURL(blob);
-          const s = document.createElement("script");
-          s.src = url;
-          s.onload = () => {
-            URL.revokeObjectURL(url);
-            // Report usage
-            GM_xmlhttpRequest({
-              method: "POST",
-              url: BASE_URL + "/api/done",
-              headers: { "Content-Type": "application/json" },
-              data: JSON.stringify({ token }),
-            });
-          };
-          (document.head || document.documentElement).appendChild(s);
+  function _i(code){
+    const u=URL.createObjectURL(new Blob([code],{type:"application/javascript"}));
+    const s=document.createElement("script");
+    s.src=u; s.onload=()=>URL.revokeObjectURL(u);
+    (document.head||document.documentElement).appendChild(s);
+  }
+
+  function _l(tok){
+    _r({method:"GET",url:_u+"/api/serve?token="+encodeURIComponent(tok),
+      onload(res){
+        if(res.status===200){
+          _d(res.responseText.trim(),tok).then(code=>{
+            _i(code);
+            _r({method:"POST",url:_u+"/api/done",
+              headers:{"Content-Type":"application/json"},
+              data:JSON.stringify({token:tok})});
+          }).catch(()=>{});
         } else {
-          let msg;
-          try { msg = JSON.parse(res.responseText).error; } catch { msg = res.status; }
-          alert("[Loader] Error: " + msg);
-          if (res.status === 403) setToken(null);
+          try{const e=JSON.parse(res.responseText).error;alert("[L] "+e);}catch{}
+          if(res.status===403)_s(_k,null);
         }
-      },
-      onerror() { console.error("[Loader] Network error"); },
+      },onerror(){}
     });
   }
 
-  GM_registerMenuCommand("Set / Change Token", promptToken);
-
-  const token = getToken();
-  if (token) { loadScript(token); } else { promptToken(); }
+  function _p(){const t=prompt("Token:");if(t?.trim()){_s(_k,t.trim());_l(t.trim());}}
+  _m("Set Token",_p);
+  const t=_b(_k,null);t?_l(t):_p();
 })();
