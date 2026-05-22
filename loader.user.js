@@ -14,8 +14,8 @@
 (function () {
   "use strict";
 
-  const BASE_URL = "nowww-nine.vercel.app";
-  const TOKEN_KEY = "demo-token-123";
+  const BASE_URL = "https://yourproject.vercel.app";
+  const TOKEN_KEY = "loader_token";
 
   function getToken() {
     return GM_getValue(TOKEN_KEY, null);
