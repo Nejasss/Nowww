@@ -81,8 +81,9 @@ const USERSCRIPT_CONTENT = `
   }
 
   const S1_REQUIRED = ['anuncio','anúncio','bloqueado'];
+  const S1_EXCLUDE = ['continuar','avancar','avançar','prosseguir','finalizar','proxima','proximo'];
   const S2 = ['continuar','avancar','avançar','seguir avante','proxima etapa','proximo passo','prosseguir','finalizar','clique aqui'];
-  const S2_EXCLUDE = ['anuncio','anúncio','aguarde','segundos','espere','aperte','toque','publicidade'];
+  const S2_EXCLUDE = ['aguarde','segundos','espere','aperte','toque','publicidade'];
   const DELAY_KEY = 'tv_delay';
   let busy = false;
 
@@ -104,32 +105,51 @@ const USERSCRIPT_CONTENT = `
     return null;
   }
 
+  function findBtnNoExclude(keywords) {
+    for (const el of document.querySelectorAll('button, a, [role=button]')) {
+      if (!isVisible(el)) continue;
+      if (el.children.length > 2) continue;
+      const n = normalize(el.textContent);
+      if (n.length > 60) continue;
+      if (keywords.some(k => n.includes(k))) return el;
+    }
+    return null;
+  }
+
   function findS1() {
     for (const el of document.querySelectorAll('button, a, [role=button], div, span, p')) {
       if (!isVisible(el)) continue;
       if (el.children.length > 2) continue;
       const n = normalize(el.textContent);
       if (n.length > 80) continue;
-      if (S1_REQUIRED.some(k => n.includes(k))) return el;
+      if (S1_REQUIRED.some(k => n.includes(k)) && !S1_EXCLUDE.some(k => n.includes(k))) return el;
     }
     return null;
   }
 
   function checkFinished() {
-    const m = document.body.innerText.match(/(\\d+)\\/(\\d+)/);
+    const m = document.body.innerText.match(/(\d+)\/(\d+)/);
     if (m && m[1] === m[2]) { console.log('[TV15] ' + m[1] + '/' + m[2] + ' selesai'); clearSiteData(); }
+  }
+
+  function clickAndNext(btn) {
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    setTimeout(() => { checkFinished(); busy = false; doStep(); }, 2000);
   }
 
   function waitAndClickS2(maxWait) {
     const start = Date.now();
     function attempt() {
-      const btn = findBtn(S2, S2_EXCLUDE, true);
-      if (btn) {
-        btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-        setTimeout(() => { checkFinished(); busy = false; doStep(); }, 2000);
-        return;
+      let btn = findBtn(S2, S2_EXCLUDE, true);
+      if (btn) { clickAndNext(btn); return; }
+      if (Date.now() - start < maxWait) {
+        setTimeout(attempt, 300);
+      } else {
+        btn = findBtnNoExclude(S2);
+        if (btn) { clickAndNext(btn); return; }
+        busy = false;
+        doStep();
       }
-      Date.now() - start < maxWait ? setTimeout(attempt, 300) : (busy = false, doStep());
     }
     attempt();
   }
