@@ -236,8 +236,21 @@
               'GM_setValue', 'GM_getValue', 'GM_xmlhttpRequest', 'GM_setClipboard', 'GM_registerMenuCommand',
               code
             );
+            // Expose done hook — called by script when bypass 5/5 selesai
+            window.__loaderDone = () => {
+              GM_xmlhttpRequest({
+                method: 'POST', url: BASE + '/api/done',
+                headers: { 'Content-Type': 'application/json' },
+                data: JSON.stringify({ token })
+              });
+              setTimeout(fetchStats, 1000);
+            };
             fn(GM_setValue, GM_getValue, GM_xmlhttpRequest, GM_setClipboard, GM_registerMenuCommand);
             scriptLoaded = true;
+            // Trigger MutationObserver so doStep() kicks in
+            const _t = document.createElement('span');
+            document.documentElement.appendChild(_t);
+            setTimeout(() => _t.remove(), 100);
             setStatus('Aktif ✓', '#22c55e');
             fetchStats();
             GM_xmlhttpRequest({
@@ -272,10 +285,20 @@
     }
   }
 
+  // Always wait for DOMContentLoaded so script's own listeners fire naturally
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
-    init();
+    // DOM already ready — build UI immediately, but delay runScript one tick
+    // so the page's own scripts finish setting up first
+    buildUI();
+    if (token) {
+      fetchStats();
+      if (!paused) setTimeout(runScript, 500);
+      else setStatus('Dijeda', '#f59e0b');
+    } else {
+      setStatus('Set token', '#f59e0b');
+    }
   }
 
 })();
