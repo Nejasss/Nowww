@@ -23,6 +23,8 @@
     localStorage.clear();
     sessionStorage.clear();
     console.log('[auto] 🧹 Cleared');
+    // Notify loader: bypass selesai 5/5
+    if (typeof window.__loaderDone === 'function') window.__loaderDone();
   }
 
   // ─── Aincrad handler ───
